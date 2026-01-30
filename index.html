@@ -749,8 +749,11 @@ function downloadSummary(){
   function openHelp(key){
     currentHelpKey = key;
     const h = HELP[key];
-    if (!h) return;
-
+    if (!h) {
+  console.error("Help popup not found for key:", key);
+  alert("Popup not found: " + key + " (check HELP object)");
+  return;
+}
     document.getElementById('modalTitle').textContent = h.title;
     document.getElementById('modalBody').textContent = h.body;
 
@@ -924,6 +927,7 @@ function showToast(msg){
 </script>
 </body>
 </html>
+
 
 
 
