@@ -747,6 +747,7 @@ function downloadSummary(){
   let currentHelpKey = null;
 
   function openHelp(key){
+    console.log("openHelp clicked:", key);
     currentHelpKey = key;
     const h = HELP[key];
     if (!h) {
@@ -923,10 +924,21 @@ function showToast(msg){
   clearTimeout(window.__toastTimer);
   window.__toastTimer = setTimeout(()=>{ t.style.display='none'; }, 2000);
 }
+window.addEventListener("DOMContentLoaded", () => {
+  const btn = document.getElementById("btnAssumptions");
+  console.log("Assumptions button found:", !!btn);
+  if (btn) {
+    btn.addEventListener("click", () => {
+      console.log("Listener saw click: Assumptions ✅");
+      try { openHelp("assumptions"); } catch (e) { console.error(e); }
+    });
+  }
+});
 
 </script>
 </body>
 </html>
+
 
 
 
