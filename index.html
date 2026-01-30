@@ -452,7 +452,20 @@
         "Final version will show exact assumption values and citations per scenario."
       ],
       default: null
-    }
+    },
+    assumptions: {
+    title: "Assumptions (buyer-friendly)",
+    body:
+      "This calculator provides directional estimates to support prioritization and planning. You can adjust any input and rerun in seconds.",
+    bullets: [
+      "Cloudability: visibility + allocation + governance-driven savings over time.",
+      "Turbonomic: automated rightsizing/resourcing—stronger when VM count and compute spend are high.",
+      "Instana: reduces incident impact and troubleshooting time—stronger when incident volume or impact is high.",
+      "Scenario selection changes adoption speed and value capture."
+    ],
+    default: null
+  },
+
   };
 
   // --- Assumption ranges (still placeholder; we’ll swap for TEI + benchmark values next) ---
@@ -938,6 +951,7 @@ window.addEventListener("DOMContentLoaded", () => {
 </script>
 </body>
 </html>
+
 
 
 
