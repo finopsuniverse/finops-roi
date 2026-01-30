@@ -795,9 +795,95 @@ function downloadSummary(){
   document.addEventListener('keydown', (e)=>{
     if (e.key === "Escape") closeHelp();
   });
+  function downloadSummary(){
+  // Make sure results exist
+  const tbl = document.getElementById('tbl');
+  if (!tbl || tbl.style.display === 'none') {
+    try { run(); } catch (e) {}
+  }
+
+  // Collect current inputs
+  const inputs = {
+    "Annual cloud spend": document.getElementById('cloudSpend')?.value,
+    "Annual total IT spend": document.getElementById('itSpend')?.value,
+    "Cloud mix (cloud %)": document.getElementById('cloudPct')?.value,
+    "Total VMs": document.getElementById('vms')?.value,
+    "Infra/Platform engineers": document.getElementById('infraEng')?.value,
+    "SRE/Ops": document.getElementById('ops')?.value,
+    "Developers": document.getElementById('devs')?.value,
+    "Avg loaded cost": document.getElementById('loadedCost')?.value,
+    "Sev1+Sev2 incidents/month": document.getElementById('incidents')?.value,
+    "Business impact per hour": document.getElementById('impactHr')?.value,
+    "Tagging coverage %": document.getElementById('tagging')?.value,
+    "Commitment coverage %": document.getElementById('commit')?.value,
+    "Annual tool budget": document.getElementById('toolBudget')?.value,
+    "Ramp-up months": document.getElementById('ramp')?.value,
+    "Scenario": document.getElementById('scenario')?.value
+  };
+
+  // Pull top recommendation from the UI
+  const summaryEl = document.getElementById('summary');
+  const topLine = summaryEl ? summaryEl.textContent : "Top recommendation: (not available)";
+
+  // Pull ROI table rows
+  let tableText = "";
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    const rows = tbody.querySelectorAll('tr');
+    const lines = [];
+    lines.push("Option | Gross benefit | Total cost | Net benefit | ROI | Payback");
+    lines.push("------ | ------------ | ---------- | ---------- | --- | -------");
+    rows.forEach(r=>{
+      const cols = r.querySelectorAll('td');
+      if (cols.length >= 6) {
+        lines.push([
+          cols[0].textContent.trim(),
+          cols[1].textContent.trim(),
+          cols[2].textContent.trim(),
+          cols[3].textContent.trim(),
+          cols[4].textContent.trim(),
+          cols[5].textContent.trim()
+        ].join(" | "));
+      }
+    });
+    tableText = lines.join("\n");
+  }
+
+  // Build final text
+  const parts = [];
+  parts.push("FinOps ROI Advisor – Summary");
+  parts.push("====================================");
+  parts.push(topLine);
+  parts.push("");
+  parts.push("Inputs");
+  parts.push("------");
+  for (const [k,v] of Object.entries(inputs)) parts.push(`${k}: ${v ?? ""}`);
+  parts.push("");
+  parts.push("ROI (annualized)");
+  parts.push("---------------");
+  parts.push(tableText || "(ROI table not available)");
+  parts.push("");
+  parts.push("Notes");
+  parts.push("-----");
+  parts.push("Directional estimate for prioritization. Actual results vary.");
+
+  const text = parts.join("\n");
+
+  // Download as TXT
+  const blob = new Blob([text], {type: "text/plain;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = "finops-roi-summary.txt";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 </script>
 </body>
 </html>
+
 
 
 
