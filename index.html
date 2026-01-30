@@ -902,10 +902,29 @@ window.addEventListener("DOMContentLoaded", () => {
     try { setExample("ops"); } catch (e) { console.error("setExample ops error:", e); }
   });
 });
+function showToast(msg){
+  let t = document.getElementById('toast');
+  if (!t) {
+    t = document.createElement('div');
+    t.id = 'toast';
+    t.style.cssText = `
+      position:fixed; left:16px; bottom:16px; z-index:99999;
+      background:rgba(18,27,47,.98); border:1px solid rgba(255,255,255,.12);
+      color:#e9eefc; padding:10px 12px; border-radius:12px; display:none;
+      box-shadow:0 10px 30px rgba(0,0,0,.35); font-size:13px;
+    `;
+    document.body.appendChild(t);
+  }
+  t.textContent = msg;
+  t.style.display = 'block';
+  clearTimeout(window.__toastTimer);
+  window.__toastTimer = setTimeout(()=>{ t.style.display='none'; }, 2000);
+}
 
 </script>
 </body>
 </html>
+
 
 
 
