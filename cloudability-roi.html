@@ -1,0 +1,702 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>FinOps ROI Advisor (with Input Popups)</title>
+  <style>
+    :root{--bg:#0b1220;--card:#121b2f;--text:#e9eefc;--muted:#a9b4d6;--accent:#02aeef;--gold:#eeb120;}
+    body{margin:0;font-family:system-ui,-apple-system,Segoe UI,Roboto,Arial,sans-serif;background:linear-gradient(180deg,#070c16,var(--bg));color:var(--text);}
+    .wrap{max-width:1120px;margin:0 auto;padding:22px 16px 52px;}
+    h1{margin:4px 0 6px;font-size:26px}
+    p{margin:0 0 14px;color:var(--muted);line-height:1.5}
+    .grid{display:grid;grid-template-columns:1.06fr .94fr;gap:14px}
+    .card{background:rgba(18,27,47,.92);border:1px solid rgba(255,255,255,.08);border-radius:16px;padding:14px;box-shadow:0 10px 30px rgba(0,0,0,.25)}
+    .row{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+    .field{position:relative}
+    .labelrow{display:flex;align-items:center;gap:8px;margin:10px 0 6px}
+    label{color:var(--muted);font-size:13px}
+    input,select{width:100%;padding:10px 12px;border-radius:12px;border:1px solid rgba(255,255,255,.14);background:rgba(0,0,0,.18);color:var(--text);outline:none}
+    input:focus,select:focus{border-color:rgba(2,174,239,.7);box-shadow:0 0 0 3px rgba(2,174,239,.18)}
+    .btns{display:flex;gap:10px;margin-top:14px;flex-wrap:wrap}
+    button{border:0;border-radius:999px;padding:10px 14px;cursor:pointer;font-weight:650}
+    .primary{background:var(--accent);color:#03121a}
+    .ghost{background:transparent;color:var(--text);border:1px solid rgba(255,255,255,.18)}
+    .pill{display:inline-block;padding:3px 10px;border-radius:999px;font-size:12px;border:1px solid rgba(255,255,255,.14);color:var(--muted)}
+    table{width:100%;border-collapse:collapse;margin-top:10px;overflow:hidden;border-radius:12px}
+    th,td{padding:10px;border-bottom:1px solid rgba(255,255,255,.08);text-align:right;vertical-align:top}
+    th:first-child,td:first-child{text-align:left}
+    th{color:var(--muted);font-weight:650;font-size:12px;text-transform:uppercase;letter-spacing:.05em}
+    .why{color:var(--muted);font-size:12px;line-height:1.45;margin-top:6px}
+    .rank{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;padding:10px;border:1px solid rgba(255,255,255,.08);border-radius:14px;margin-top:10px}
+    .rank b{font-size:14px}
+    .score{font-size:12px;color:var(--muted);text-align:right}
+    .note{font-size:12px;color:var(--muted);margin-top:10px;line-height:1.5}
+
+    /* Help icon */
+    .help{
+      width:18px;height:18px;border-radius:999px;
+      display:inline-flex;align-items:center;justify-content:center;
+      background:rgba(2,174,239,.18);border:1px solid rgba(2,174,239,.35);
+      color:var(--text);font-size:12px;cursor:pointer;user-select:none;
+    }
+    .help:hover{background:rgba(2,174,239,.26)}
+    .topbar{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+
+    /* Modal */
+    .modal-backdrop{
+      position:fixed;inset:0;background:rgba(0,0,0,.55);
+      display:none;align-items:center;justify-content:center;padding:18px;z-index:9999;
+    }
+    .modal{
+      width:min(720px, 100%);
+      background:rgba(18,27,47,.98);
+      border:1px solid rgba(255,255,255,.10);
+      border-radius:16px;padding:14px 14px 12px;
+      box-shadow:0 20px 60px rgba(0,0,0,.45);
+    }
+    .modal h3{margin:0 0 6px;font-size:16px}
+    .modal p{margin:0 0 10px;color:var(--muted);font-size:13px}
+    .modal ul{margin:8px 0 10px 18px;color:var(--muted);font-size:13px;line-height:1.5}
+    .modal .actions{display:flex;gap:10px;justify-content:flex-end;flex-wrap:wrap;margin-top:6px}
+    .x{
+      float:right;border:0;background:transparent;color:var(--muted);
+      font-size:18px;cursor:pointer;line-height:1;padding:6px 8px;border-radius:10px;
+    }
+    .x:hover{background:rgba(255,255,255,.06);color:var(--text)}
+    .kbd{font-family:ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+      font-size:12px;border:1px solid rgba(255,255,255,.16);padding:2px 6px;border-radius:8px;color:var(--muted)}
+    @media(max-width:900px){.grid{grid-template-columns:1fr}}
+  </style>
+</head>
+<body>
+<div class="wrap">
+  <div class="topbar">
+    <div>
+      <h1>FinOps ROI Advisor</h1>
+      <p>Interactive model that estimates ROI and recommends Cloudability, Turbonomic, Instana—or combos—based on your environment.</p>
+    </div>
+    <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+      <span class="pill">Sample • pop-up explainers</span>
+      <button class="ghost" onclick="openHelp('how')">How this works</button>
+    </div>
+  </div>
+
+  <div class="grid">
+    <div class="card">
+      <h2 style="margin:0 0 6px;font-size:18px;">Inputs</h2>
+
+      <div class="row">
+        <div class="field">
+          <div class="labelrow">
+            <label>Annual cloud spend (USD)</label>
+            <span class="help" onclick="openHelp('cloudSpend')">?</span>
+          </div>
+          <input id="cloudSpend" type="number" value="5000000" step="1000" min="0"/>
+        </div>
+        <div class="field">
+          <div class="labelrow">
+            <label>Annual total IT spend (USD)</label>
+            <span class="help" onclick="openHelp('itSpend')">?</span>
+          </div>
+          <input id="itSpend" type="number" value="20000000" step="1000" min="0"/>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <div class="labelrow">
+            <label>Cloud mix (cloud % of workloads)</label>
+            <span class="help" onclick="openHelp('cloudPct')">?</span>
+          </div>
+          <input id="cloudPct" type="number" value="60" step="1" min="0" max="100"/>
+        </div>
+        <div class="field">
+          <div class="labelrow">
+            <label># of VMs (total)</label>
+            <span class="help" onclick="openHelp('vms')">?</span>
+          </div>
+          <input id="vms" type="number" value="1800" step="10" min="0"/>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <div class="labelrow">
+            <label># Infra/Platform engineers</label>
+            <span class="help" onclick="openHelp('infraEng')">?</span>
+          </div>
+          <input id="infraEng" type="number" value="18" step="1" min="0"/>
+        </div>
+        <div class="field">
+          <div class="labelrow">
+            <label># SRE/Ops</label>
+            <span class="help" onclick="openHelp('ops')">?</span>
+          </div>
+          <input id="ops" type="number" value="10" step="1" min="0"/>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <div class="labelrow">
+            <label># Developers</label>
+            <span class="help" onclick="openHelp('devs')">?</span>
+          </div>
+          <input id="devs" type="number" value="120" step="5" min="0"/>
+        </div>
+        <div class="field">
+          <div class="labelrow">
+            <label>Avg loaded cost (USD/year)</label>
+            <span class="help" onclick="openHelp('loadedCost')">?</span>
+          </div>
+          <input id="loadedCost" type="number" value="175000" step="5000" min="0"/>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <div class="labelrow">
+            <label>Sev1+Sev2 incidents / month</label>
+            <span class="help" onclick="openHelp('incidents')">?</span>
+          </div>
+          <input id="incidents" type="number" value="14" step="1" min="0"/>
+        </div>
+        <div class="field">
+          <div class="labelrow">
+            <label>Business impact per hour (USD)</label>
+            <span class="help" onclick="openHelp('impactHr')">?</span>
+          </div>
+          <input id="impactHr" type="number" value="25000" step="1000" min="0"/>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <div class="labelrow">
+            <label>Tagging coverage %</label>
+            <span class="help" onclick="openHelp('tagging')">?</span>
+          </div>
+          <input id="tagging" type="number" value="55" step="1" min="0" max="100"/>
+        </div>
+        <div class="field">
+          <div class="labelrow">
+            <label>Commitment coverage % (RIs/Savings Plans)</label>
+            <span class="help" onclick="openHelp('commit')">?</span>
+          </div>
+          <input id="commit" type="number" value="35" step="1" min="0" max="100"/>
+        </div>
+      </div>
+
+      <div class="row">
+        <div class="field">
+          <div class="labelrow">
+            <label>Expected annual tool budget (USD)</label>
+            <span class="help" onclick="openHelp('toolBudget')">?</span>
+          </div>
+          <input id="toolBudget" type="number" value="300000" step="10000" min="0"/>
+        </div>
+        <div class="field">
+          <div class="labelrow">
+            <label>Ramp-up months</label>
+            <span class="help" onclick="openHelp('ramp')">?</span>
+          </div>
+          <input id="ramp" type="number" value="3" step="1" min="0" max="12"/>
+        </div>
+      </div>
+
+      <div class="field">
+        <div class="labelrow">
+          <label>Scenario</label>
+          <span class="help" onclick="openHelp('scenario')">?</span>
+        </div>
+        <select id="scenario">
+          <option value="conservative">Conservative</option>
+          <option value="expected" selected>Expected</option>
+          <option value="aggressive">Aggressive</option>
+        </select>
+      </div>
+
+      <div class="btns">
+        <button class="primary" onclick="run()">Run model</button>
+        <button class="ghost" onclick="setExample('finops')">Example: FinOps gap</button>
+        <button class="ghost" onclick="setExample('ops')">Example: Incident-heavy</button>
+      </div>
+
+      <div class="note">
+        Pop-up explainers are designed for buyers: definitions, quick estimation tips, and how each input influences the recommendation.
+      </div>
+    </div>
+
+    <div class="card">
+      <h2 style="margin:0 0 6px;font-size:18px;">Recommendations</h2>
+      <div id="summary" class="note">Click <b>Run model</b> to see ranked options.</div>
+      <div id="rankings"></div>
+
+      <h3 style="margin:14px 0 6px;font-size:14px;">ROI breakdown (annualized)</h3>
+      <table id="tbl" style="display:none;">
+        <thead>
+          <tr>
+            <th>Option</th>
+            <th>Gross benefit</th>
+            <th>Total cost</th>
+            <th>Net benefit</th>
+            <th>ROI</th>
+            <th>Payback</th>
+          </tr>
+        </thead>
+        <tbody id="tbody"></tbody>
+      </table>
+
+      <div class="note" style="margin-top:10px">
+        Next iteration: add a “Show assumptions & sources” panel and swap placeholder ranges for cited TEI + industry benchmarks.
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal -->
+<div id="backdrop" class="modal-backdrop" onclick="backdropClick(event)">
+  <div class="modal" role="dialog" aria-modal="true" aria-labelledby="modalTitle">
+    <button class="x" onclick="closeHelp()" aria-label="Close">✕</button>
+    <h3 id="modalTitle">Title</h3>
+    <p id="modalBody">Body</p>
+    <div id="modalList"></div>
+    <div class="actions">
+      <button class="ghost" id="defaultBtn" onclick="applyDefault()">Use default</button>
+      <button class="primary" onclick="closeHelp()">Done</button>
+    </div>
+    <div class="note" style="margin-top:10px">
+      Tip: Press <span class="kbd">Esc</span> to close.
+    </div>
+  </div>
+</div>
+
+<script>
+  const money = n => n.toLocaleString(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0});
+  const months = n => (!isFinite(n) ? "—" : (n<1 ? "<1 mo" : n.toFixed(1)+" mo"));
+  function clamp(n,min,max){ return Math.max(min,Math.min(max,n)); }
+
+  // ---- Pop-up content (edit freely) ----
+  const HELP = {
+    how: {
+      title: "How this model works",
+      body:
+        "The advisor estimates benefits from three value streams—FinOps cost governance (Cloudability), automated resourcing/rightsizing (Turbonomic), and observability/incident reduction (Instana). It then ranks single products and combinations based on ROI, payback speed, and fit signals from your inputs.",
+      bullets: [
+        "Conservative/Expected/Aggressive scenarios change savings/efficiency multipliers.",
+        "Tagging + commitment coverage influence “realization rate” (how much savings you actually capture).",
+        "VM scale and hybrid mix increase Turbonomic impact; incident frequency + impact increase Instana impact.",
+        "Next version adds a “Show sources” panel (TEI + benchmarks) so buyers can see justification inline."
+      ],
+      default: null
+    },
+    cloudSpend: {
+      title: "Annual cloud spend",
+      body:
+        "Total annual public cloud spend (AWS/Azure/GCP). This is the baseline for Cloudability & Turbonomic savings and a proxy for app scale that affects Instana value.",
+      bullets: [
+        "If you only know monthly spend, multiply by 12.",
+        "If spend is only one provider, enter that and set scope later.",
+        "If unsure, start with last 3 months average × 12."
+      ],
+      default: { id:"cloudSpend", value: 2000000 }
+    },
+    itSpend: {
+      title: "Annual total IT spend",
+      body:
+        "Total IT budget helps estimate hybrid footprint and on-prem cost exposure. It also prevents over-claiming savings when cloud is a small share of IT.",
+      bullets: [
+        "Include infra/platform, tools, licenses, and ops costs if possible.",
+        "If unknown, use cloud spend / cloud% as a rough proxy."
+      ],
+      default: { id:"itSpend", value: 15000000 }
+    },
+    cloudPct: {
+      title: "Cloud mix (cloud % of workloads)",
+      body:
+        "Rough percent of workloads running in public cloud. Lower cloud% implies a bigger hybrid/on-prem footprint, which tends to increase Turbonomic capacity benefits.",
+      bullets: [
+        "Use workload count or compute footprint—don’t overthink it.",
+        "If cloud% is high, Cloudability becomes more central; if lower, Turbonomic often rises."
+      ],
+      default: { id:"cloudPct", value: 60 }
+    },
+    vms: {
+      title: "# of VMs (total)",
+      body:
+        "Total VMs (cloud + on-prem). Higher VM counts usually mean more manual sizing and more savings potential from automation (Turbonomic).",
+      bullets: [
+        "If you don’t know total, enter cloud VMs only and we’ll add a separate on-prem field later.",
+        "Kubernetes-heavy shops may have fewer VMs but more nodes/pods—future version will capture that."
+      ],
+      default: { id:"vms", value: 800 }
+    },
+    infraEng: {
+      title: "# Infra/Platform engineers",
+      body:
+        "Platform/infra team size influences how quickly you can operationalize recommendations. Smaller teams benefit from automation and better governance (higher time savings).",
+      bullets: [
+        "Include cloud platform, infra automation, and platform enablement roles.",
+        "If you outsource, estimate internal FTE equivalents."
+      ],
+      default: { id:"infraEng", value: 8 }
+    },
+    ops: {
+      title: "# SRE/Ops",
+      body:
+        "Ops/SRE team size influences support burden and time savings from automation + observability.",
+      bullets: [
+        "Include NOC, SRE, on-call responders, and performance triage roles."
+      ],
+      default: { id:"ops", value: 6 }
+    },
+    devs: {
+      title: "# Developers",
+      body:
+        "Developer count helps estimate productivity gains from Instana (less time troubleshooting, faster root cause). Larger dev orgs generally amplify observability ROI.",
+      bullets: [
+        "If you have multiple product teams, include all teams building or operating customer-facing services."
+      ],
+      default: { id:"devs", value: 60 }
+    },
+    loadedCost: {
+      title: "Average loaded cost",
+      body:
+        "Fully loaded cost per employee (salary + benefits + taxes + overhead). Used to value time savings across engineering/ops/dev teams.",
+      bullets: [
+        "If you don’t know, 150k–220k is common in many US tech orgs depending on role mix.",
+        "You can replace this later with role-specific rates (infra vs ops vs dev)."
+      ],
+      default: { id:"loadedCost", value: 175000 }
+    },
+    incidents: {
+      title: "Sev1 + Sev2 incidents per month",
+      body:
+        "Incident frequency is a primary driver of Instana ROI. If you don’t track severity, use 'major incidents that required escalation and meaningful engineering time.'",
+      bullets: [
+        "If you only know tickets, estimate how many were user-impacting incidents.",
+        "Future version can take MTTR and incident duration explicitly."
+      ],
+      default: { id:"incidents", value: 6 }
+    },
+    impactHr: {
+      title: "Business impact per hour",
+      body:
+        "Dollar impact per hour of a major incident (lost revenue, SLA penalties, productivity loss, customer churn risk). This is often the biggest Instana lever.",
+      bullets: [
+        "If you have ecommerce/SaaS revenue, use revenue per hour × a disruption factor.",
+        "If internal apps, estimate workforce downtime cost (people affected × hourly cost)."
+      ],
+      default: { id:"impactHr", value: 10000 }
+    },
+    tagging: {
+      title: "Tagging coverage %",
+      body:
+        "Percent of cloud spend properly tagged for ownership (team/app/env). Low tagging reduces your ability to allocate and act on spend, so it lowers realization unless improved.",
+      bullets: [
+        "If you don’t know, 30–70% is common depending on maturity.",
+        "Cloudability value increases when tagging is weak because it drives allocation and governance workflows."
+      ],
+      default: { id:"tagging", value: 50 }
+    },
+    commit: {
+      title: "Commitment coverage %",
+      body:
+        "Percent of eligible compute spend covered by Savings Plans / Reserved Instances / Reservations. Low coverage suggests immediate optimization opportunity.",
+      bullets: [
+        "If unsure, pick 25–40% for a starting estimate.",
+        "Higher coverage doesn’t mean you’re done; it can still be mis-sized or overcommitted."
+      ],
+      default: { id:"commit", value: 35 }
+    },
+    toolBudget: {
+      title: "Expected annual tool budget",
+      body:
+        "Used as a placeholder cost input for this sample. Final version will let you set actual prices or choose tiers, and it will break out enablement/services separately.",
+      bullets: [
+        "This is NOT meant to match list price.",
+        "Enter what you think would be a realistic annual budget for tools + enablement."
+      ],
+      default: { id:"toolBudget", value: 250000 }
+    },
+    ramp: {
+      title: "Ramp-up months",
+      body:
+        "How long until the program reaches steady state (data connected, tagging governance, actions taken). During ramp, benefits accrue gradually.",
+      bullets: [
+        "Typical: 2–4 months for initial value; faster if you already have governance and data coverage.",
+        "Longer ramp reduces first-year savings (but not necessarily multi-year ROI)."
+      ],
+      default: { id:"ramp", value: 3 }
+    },
+    scenario: {
+      title: "Scenario selection",
+      body:
+        "Scenario changes savings multipliers. Conservative assumes slower adoption and lower capture; Aggressive assumes strong governance, engineering capacity, and executive support.",
+      bullets: [
+        "Expected is most useful for a first conversation.",
+        "Final version will show exact assumption values and citations per scenario."
+      ],
+      default: null
+    }
+  };
+
+  // --- Assumption ranges (still placeholder; we’ll swap for TEI + benchmark values next) ---
+  const ASSUMPTIONS = {
+    conservative: { cloudability_savings_pct: 0.05, turbo_compute_savings_pct: 0.06, instana_incident_reduction: 0.08, labor_efficiency_pct: 0.02 },
+    expected:     { cloudability_savings_pct: 0.10, turbo_compute_savings_pct: 0.12, instana_incident_reduction: 0.18, labor_efficiency_pct: 0.05 },
+    aggressive:   { cloudability_savings_pct: 0.16, turbo_compute_savings_pct: 0.20, instana_incident_reduction: 0.28, labor_efficiency_pct: 0.08 }
+  };
+
+  function computeShareFromMix(taggingPct, commitPct){
+    let base = 0.55;
+    if (commitPct > 50) base += 0.05;
+    if (taggingPct > 70) base += 0.03;
+    return clamp(base, 0.45, 0.70);
+  }
+  function realization(taggingPct, infraEng){
+    let r = 0.45 + (taggingPct/100)*0.35;
+    if (infraEng >= 10) r += 0.05;
+    return clamp(r, 0.40, 0.85);
+  }
+  function rampFactor(rampMonths){ return clamp((12 - rampMonths)/12, 0, 1); }
+
+  function toolCostSplit(toolBudget, which){
+    const splits = { cloudability: 0.45, turbonomic: 0.45, instana: 0.45, c_t: 0.72, c_i: 0.72, t_i: 0.72, all: 0.95 };
+    return toolBudget * (splits[which] ?? 0.5);
+  }
+
+  function run(){
+    const cloudSpend = Number(document.getElementById('cloudSpend').value||0);
+    const itSpend = Number(document.getElementById('itSpend').value||0);
+    const cloudPct = clamp(Number(document.getElementById('cloudPct').value||0),0,100)/100;
+    const vms = Number(document.getElementById('vms').value||0);
+    const infraEng = Number(document.getElementById('infraEng').value||0);
+    const ops = Number(document.getElementById('ops').value||0);
+    const devs = Number(document.getElementById('devs').value||0);
+    const loadedCost = Number(document.getElementById('loadedCost').value||0);
+    const incidentsMo = Number(document.getElementById('incidents').value||0);
+    const impactHr = Number(document.getElementById('impactHr').value||0);
+    const taggingPct = clamp(Number(document.getElementById('tagging').value||0),0,100);
+    const commitPct = clamp(Number(document.getElementById('commit').value||0),0,100);
+    const toolBudget = Number(document.getElementById('toolBudget').value||0);
+    const ramp = clamp(Number(document.getElementById('ramp').value||0),0,12);
+    const scen = document.getElementById('scenario').value;
+
+    const a = ASSUMPTIONS[scen];
+    const rf = rampFactor(ramp);
+    const real = realization(taggingPct, infraEng);
+
+    const inScopeCloud = cloudSpend * 0.85; // placeholder coverage
+    const computeShare = computeShareFromMix(taggingPct, commitPct);
+    const cloudCompute = inScopeCloud * computeShare;
+
+    const cloudabilityBenefit = inScopeCloud * a.cloudability_savings_pct * real * rf;
+
+    const vmScaleFactor = clamp(Math.log10(Math.max(vms,10)) / 3, 0.4, 1.2);
+    const turbonomicBenefit = cloudCompute * a.turbo_compute_savings_pct * real * rf * vmScaleFactor
+      + (itSpend*(1-cloudPct)) * 0.01 * rf * (vms>800?1:0.5);
+
+    const avgIncidentHours = 2.0; // placeholder (next version becomes input)
+    const annualIncidentImpact = incidentsMo * 12 * avgIncidentHours * impactHr;
+
+    const instanaIncidentBenefit = annualIncidentImpact * a.instana_incident_reduction * rf;
+    const devOpsPeople = devs + ops;
+    const laborBucket = devOpsPeople * loadedCost;
+    const instanaLaborBenefit = laborBucket * a.labor_efficiency_pct * 0.35 * rf;
+    const instanaBenefit = instanaIncidentBenefit + instanaLaborBenefit;
+
+    const comboBonus = (base) => base * 0.06 * rf;
+
+    const c = cloudabilityBenefit, t = turbonomicBenefit, i = instanaBenefit;
+
+    const options = [
+      { key:"cloudability", name:"Cloudability", benefit: c, cost: toolCostSplit(toolBudget,"cloudability"), why: buildWhy("Cloudability", {taggingPct, commitPct, cloudSpend, infraEng})},
+      { key:"turbonomic", name:"Turbonomic", benefit: t, cost: toolCostSplit(toolBudget,"turbonomic"), why: buildWhy("Turbonomic", {vms, cloudSpend, cloudPct, ops})},
+      { key:"instana", name:"Instana", benefit: i, cost: toolCostSplit(toolBudget,"instana"), why: buildWhy("Instana", {incidentsMo, impactHr, devs, ops})},
+      { key:"c_t", name:"Cloudability + Turbonomic", benefit: (c+t) - (0.20*Math.min(c,t)) + comboBonus(c+t), cost: toolCostSplit(toolBudget,"c_t"), why: "Best when you need both: cost governance (allocation/commitments) + automated resourcing/rightsizing."},
+      { key:"c_i", name:"Cloudability + Instana", benefit: (c+i) - (0.12*Math.min(c,i)) + comboBonus(c+i), cost: toolCostSplit(toolBudget,"c_i"), why: "Best when cloud cost control + incident impact are both urgent (Finance + Engineering alignment)."},
+      { key:"t_i", name:"Turbonomic + Instana", benefit: (t+i) - (0.12*Math.min(t,i)) + comboBonus(t+i), cost: toolCostSplit(toolBudget,"t_i"), why: "Best when performance issues are resource-driven: fix bottlenecks and reduce MTTR together."},
+      { key:"all", name:"All three (Cloudability + Turbonomic + Instana)", benefit: (c+t+i) - (0.26*Math.min(c,Math.min(t,i))) + comboBonus(c+t+i), cost: toolCostSplit(toolBudget,"all"), why: "Best for large orgs with scale + high incident impact + low visibility. Strongest coverage, higher cost."}
+    ];
+
+    for (const o of options){
+      const net = o.benefit - o.cost;
+      const roi = o.cost>0 ? net/o.cost : 0;
+      const pay = o.benefit>0 ? (o.cost/(o.benefit/12)) : Infinity;
+      o.net = net; o.roi = roi; o.payback = pay;
+
+      const speed = isFinite(pay) ? clamp((18-pay)/18,0,1) : 0;
+      const fit = fitScore(o.key, {taggingPct, commitPct, vms, incidentsMo, cloudSpend, cloudPct});
+      o.score = (roi*0.55) + (speed*0.25) + (fit*0.20);
+      o.conf = confidence({taggingPct, commitPct, incidentsMo, vms, cloudSpend});
+    }
+
+    options.sort((a,b)=>b.score-a.score);
+
+    document.getElementById('tbl').style.display = '';
+    document.getElementById('summary').innerHTML =
+      `Top recommendation: <b>${options[0].name}</b> • Scenario: <b>${scen}</b> • Confidence: <b>${options[0].conf}</b>`;
+
+    const rankings = document.getElementById('rankings');
+    rankings.innerHTML = "";
+    for (let idx=0; idx<3; idx++){
+      const o = options[idx];
+      const div = document.createElement('div');
+      div.className = "rank";
+      div.innerHTML = `
+        <div>
+          <div><b>#${idx+1} ${o.name}</b></div>
+          <div class="why">${o.why}</div>
+        </div>
+        <div class="score">Score: ${(o.score*100).toFixed(0)}/100<br/>Payback: ${months(o.payback)}</div>
+      `;
+      rankings.appendChild(div);
+    }
+
+    const tbody = document.getElementById('tbody');
+    tbody.innerHTML = "";
+    for (const o of options.slice(0,6)){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="text-align:left;font-weight:650">${o.name}</td>
+        <td>${money(o.benefit)}</td>
+        <td>${money(o.cost)}</td>
+        <td>${money(o.net)}</td>
+        <td>${(o.roi*100).toFixed(0)}%</td>
+        <td>${months(o.payback)}</td>
+      `;
+      tbody.appendChild(tr);
+    }
+  }
+
+  function fitScore(key, x){
+    let s = 0.45;
+    if (key.includes("cloudability") || key.includes("c_") || key==="all"){
+      if (x.taggingPct < 70) s += 0.12;
+      if (x.commitPct < 50) s += 0.10;
+      if (x.cloudSpend >= 2000000) s += 0.10;
+    }
+    if (key.includes("turbonomic") || key.includes("t_") || key==="all"){
+      if (x.vms >= 800) s += 0.16;
+      if (x.cloudPct < 0.80) s += 0.06;
+      if (x.cloudSpend >= 3000000) s += 0.05;
+    }
+    if (key.includes("instana") || key.includes("i_") || key==="all"){
+      if (x.incidentsMo >= 10) s += 0.18;
+      if (x.cloudSpend >= 2000000) s += 0.04;
+    }
+    return Math.max(0, Math.min(1, s));
+  }
+
+  function confidence(x){
+    let c = 0;
+    if (x.cloudSpend>0) c++;
+    if (x.vms>0) c++;
+    if (x.incidentsMo>=0) c++;
+    if (x.taggingPct>=0) c++;
+    if (x.commitPct>=0) c++;
+    if (c>=5) return "High";
+    if (c>=3) return "Medium";
+    return "Low";
+  }
+
+  function buildWhy(product, x){
+    if (product==="Cloudability"){
+      const parts=[];
+      if (x.taggingPct < 70) parts.push(`Tagging is ${x.taggingPct}% (allocation/accountability opportunity).`);
+      if (x.commitPct < 50) parts.push(`Commitment coverage is ${x.commitPct}% (optimize RIs/Savings Plans).`);
+      if (x.cloudSpend >= 2000000) parts.push(`Cloud spend ${money(x.cloudSpend)} → governance wins matter.`);
+      if (x.infraEng < 8) parts.push(`Small platform team (${x.infraEng}) → prioritize visibility + governance.`);
+      return parts.join(" ");
+    }
+    if (product==="Turbonomic"){
+      const parts=[];
+      if (x.vms >= 800) parts.push(`${x.vms} VMs suggests material rightsizing/automation opportunity.`);
+      if (x.cloudPct < 0.80) parts.push(`Hybrid mix (cloud ${Math.round(x.cloudPct*100)}%) benefits from end-to-end resourcing.`);
+      if (x.ops >= 8) parts.push(`Ops team (${x.ops}) → reduce manual sizing/tickets.`);
+      return parts.join(" ");
+    }
+    if (product==="Instana"){
+      const parts=[];
+      if (x.incidentsMo >= 10) parts.push(`${x.incidentsMo} Sev1/2 incidents/month indicates high exposure.`);
+      if (x.impactHr >= 10000) parts.push(`Impact ${money(x.impactHr)}/hr → faster MTTR pays off.`);
+      if (x.devs >= 80) parts.push(`${x.devs} devs → meaningful troubleshooting time savings.`);
+      return parts.join(" ");
+    }
+    return "";
+  }
+
+  function setExample(type){
+    if (type==="finops"){
+      cloudSpend.value=7000000; itSpend.value=22000000; cloudPct.value=70;
+      vms.value=1200; infraEng.value=14; ops.value=8; devs.value=90;
+      loadedCost.value=180000; incidents.value=6; impactHr.value=15000;
+      tagging.value=42; commit.value=25; toolBudget.value=280000; ramp.value=3;
+      scenario.value="expected";
+    } else {
+      cloudSpend.value=3500000; itSpend.value=18000000; cloudPct.value=55;
+      vms.value=900; infraEng.value=10; ops.value=12; devs.value=160;
+      loadedCost.value=175000; incidents.value=22; impactHr.value=40000;
+      tagging.value=68; commit.value=55; toolBudget.value=320000; ramp.value=2;
+      scenario.value="expected";
+    }
+  }
+
+  // ---- Modal logic ----
+  let currentHelpKey = null;
+
+  function openHelp(key){
+    currentHelpKey = key;
+    const h = HELP[key];
+    if (!h) return;
+
+    document.getElementById('modalTitle').textContent = h.title;
+    document.getElementById('modalBody').textContent = h.body;
+
+    const list = document.getElementById('modalList');
+    list.innerHTML = "";
+    if (h.bullets && h.bullets.length){
+      const ul = document.createElement('ul');
+      for (const b of h.bullets){
+        const li = document.createElement('li');
+        li.textContent = b;
+        ul.appendChild(li);
+      }
+      list.appendChild(ul);
+    }
+
+    const defaultBtn = document.getElementById('defaultBtn');
+    if (h.default && h.default.id){
+      defaultBtn.style.display = "";
+      defaultBtn.textContent = `Use default (${h.default.value})`;
+    } else {
+      defaultBtn.style.display = "none";
+    }
+
+    document.getElementById('backdrop').style.display = "flex";
+  }
+
+  function applyDefault(){
+    const h = HELP[currentHelpKey];
+    if (!h || !h.default) return;
+    const el = document.getElementById(h.default.id);
+    if (el) el.value = h.default.value;
+  }
+
+  function closeHelp(){
+    document.getElementById('backdrop').style.display = "none";
+    currentHelpKey = null;
+  }
+
+  function backdropClick(e){
+    if (e.target && e.target.id === "backdrop") closeHelp();
+  }
+
+  document.addEventListener('keydown', (e)=>{
+    if (e.key === "Escape") closeHelp();
+  });
+</script>
+</body>
+</html>
