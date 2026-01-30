@@ -79,6 +79,7 @@
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <span class="pill">Sample • pop-up explainers</span>
       <button class="ghost" onclick="openHelp('how')">How this works</button>
+      <button class="ghost" onclick="openHelp('assumptions')">Assumptions</button>
     </div>
   </div>
 
@@ -216,13 +217,12 @@
           <option value="aggressive">Aggressive</option>
         </select>
       </div>
-
-      <div class="btns">
-        <button class="primary" onclick="run()">Run model</button>
-        <button class="ghost" onclick="setExample('finops')">Example: FinOps gap</button>
-        <button class="ghost" onclick="setExample('ops')">Example: Incident-heavy</button>
-      </div>
-
+<div class="btns">
+  <button class="primary" onclick="run()">Run model</button>
+  <button class="ghost" onclick="downloadSummary()">Download ROI summary</button>
+  <button class="ghost" onclick="setExample('finops')">Example: FinOps gap</button>
+  <button class="ghost" onclick="setExample('ops')">Example: Incident-heavy</button>
+</div>
       <div class="note">
         Pop-up explainers are designed for buyers: definitions, quick estimation tips, and how each input influences the recommendation.
       </div>
@@ -280,6 +280,19 @@
   // ---- Pop-up content (edit freely) ----
   const HELP = {
     how: {
+      assumptions: {
+  title: "Assumptions (buyer-friendly)",
+  body:
+    "This model uses scenario-based ranges to estimate savings and productivity impact. The goal is to create a realistic conversation starter—not a perfect forecast. You can adjust any input and rerun in seconds.",
+  bullets: [
+    "Cloudability estimates focus on cost visibility + allocation + waste reduction over time.",
+    "Turbonomic estimates focus on automated rightsizing/resourcing—stronger when VM count and compute spend are high.",
+    "Instana estimates focus on reducing incident impact and time spent troubleshooting—stronger when incident volume or impact is high.",
+    "Conservative assumes slower adoption and lower capture; Aggressive assumes strong governance and capacity to execute.",
+    "Next version will show a ‘Sources’ drawer with specific TEI/benchmark links for each assumption band."
+  ],
+  default: null
+},
       title: "How this model works",
       body:
         "The advisor estimates benefits from three value streams—FinOps cost governance (Cloudability), automated resourcing/rightsizing (Turbonomic), and observability/incident reduction (Instana). It then ranks single products and combinations based on ROI, payback speed, and fit signals from your inputs.",
@@ -506,6 +519,91 @@
     const laborBucket = devOpsPeople * loadedCost;
     const instanaLaborBenefit = laborBucket * a.labor_efficiency_pct * 0.35 * rf;
     const instanaBenefit = instanaIncidentBenefit + instanaLaborBenefit;
+function downloadSummary(){
+  // If they haven’t run it yet, run it once so results exist
+  const tbl = document.getElementById('tbl');
+  if (!tbl || tbl.style.display === 'none') {
+    try { run(); } catch (e) {}
+  }
+
+  // Collect current inputs
+  const inputs = {
+    "Annual cloud spend": document.getElementById('cloudSpend').value,
+    "Annual total IT spend": document.getElementById('itSpend').value,
+    "Cloud mix (cloud %)": document.getElementById('cloudPct').value,
+    "Total VMs": document.getElementById('vms').value,
+    "Infra/Platform engineers": document.getElementById('infraEng').value,
+    "SRE/Ops": document.getElementById('ops').value,
+    "Developers": document.getElementById('devs').value,
+    "Avg loaded cost": document.getElementById('loadedCost').value,
+    "Sev1+Sev2 incidents/month": document.getElementById('incidents').value,
+    "Business impact per hour": document.getElementById('impactHr').value,
+    "Tagging coverage %": document.getElementById('tagging').value,
+    "Commitment coverage %": document.getElementById('commit').value,
+    "Annual tool budget": document.getElementById('toolBudget').value,
+    "Ramp-up months": document.getElementById('ramp').value,
+    "Scenario": document.getElementById('scenario').value
+  };
+
+  // Pull top recommendation from the UI
+  const summaryEl = document.getElementById('summary');
+  const topLine = summaryEl ? summaryEl.textContent : "Top recommendation: (not available)";
+
+  // Pull ROI table rows (first 6 shown)
+  let tableText = "";
+  const tbody = document.getElementById('tbody');
+  if (tbody) {
+    const rows = tbody.querySelectorAll('tr');
+    const lines = [];
+    lines.push("Option | Gross benefit | Total cost | Net benefit | ROI | Payback");
+    lines.push("------ | ------------ | ---------- | ---------- | --- | -------");
+    rows.forEach(r=>{
+      const cols = r.querySelectorAll('td');
+      if (cols.length >= 6) {
+        lines.push([
+          cols[0].textContent.trim(),
+          cols[1].textContent.trim(),
+          cols[2].textContent.trim(),
+          cols[3].textContent.trim(),
+          cols[4].textContent.trim(),
+          cols[5].textContent.trim()
+        ].join(" | "));
+      }
+    });
+    tableText = lines.join("\n");
+  }
+
+  // Build final text
+  const parts = [];
+  parts.push("FinOps ROI Advisor – Summary");
+  parts.push("====================================");
+  parts.push(topLine);
+  parts.push("");
+  parts.push("Inputs");
+  parts.push("------");
+  for (const [k,v] of Object.entries(inputs)) parts.push(`${k}: ${v}`);
+  parts.push("");
+  parts.push("ROI (annualized)");
+  parts.push("---------------");
+  parts.push(tableText || "(ROI table not available)");
+  parts.push("");
+  parts.push("Notes");
+  parts.push("-----");
+  parts.push("This summary is an estimate based on the inputs provided and scenario assumptions in the calculator.");
+
+  const text = parts.join("\n");
+
+  // Download as TXT
+  const blob = new Blob([text], {type: "text/plain;charset=utf-8"});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = "finops-roi-summary.txt";
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
 
     const comboBonus = (base) => base * 0.06 * rf;
 
@@ -700,6 +798,7 @@
 </script>
 </body>
 </html>
+
 
 
 
