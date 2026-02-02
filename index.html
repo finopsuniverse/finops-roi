@@ -273,37 +273,40 @@
 </div>
 
 <script>
-  const money = n => n.toLocaleString(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0});
+// Utilities
+  const money = n => Number(n || 0).toLocaleString(undefined,{style:'currency',currency:'USD',maximumFractionDigits:0});
   const months = n => (!isFinite(n) ? "—" : (n<1 ? "<1 mo" : n.toFixed(1)+" mo"));
-  function clamp(n,min,max){ return Math.max(min,Math.min(max,n)); }
+  const clamp = (n,min,max) => Math.max(min, Math.min(max, n));
+  const el = (id) => document.getElementById(id);
 
   // ---- Pop-up content (edit freely) ----
   const HELP = {
     how: {
-},
-      assumptions: {
-  title: "Assumptions (buyer-friendly)",
-  body:
-    "This model uses scenario-based ranges to estimate savings and productivity impact. The goal is to create a realistic conversation starter—not a perfect forecast. You can adjust any input and rerun in seconds.",
-  bullets: [
-    "Cloudability estimates focus on cost visibility + allocation + waste reduction over time.",
-    "Turbonomic estimates focus on automated rightsizing/resourcing—stronger when VM count and compute spend are high.",
-    "Instana estimates focus on reducing incident impact and time spent troubleshooting—stronger when incident volume or impact is high.",
-    "Conservative assumes slower adoption and lower capture; Aggressive assumes strong governance and capacity to execute.",
-  ],
-  default: null
-},
       title: "How this model works",
       body:
         "The advisor estimates benefits from three value streams—FinOps cost governance (Cloudability), automated resourcing/rightsizing (Turbonomic), and observability/incident reduction (Instana). It then ranks single products and combinations based on ROI, payback speed, and fit signals from your inputs.",
       bullets: [
-        "Conservative/Expected/Aggressive scenarios change savings/efficiency multipliers.",
+        "Conservative/Expected/Aggressive scenarios change savings and efficiency multipliers.",
         "Tagging + commitment coverage influence “realization rate” (how much savings you actually capture).",
         "VM scale and hybrid mix increase Turbonomic impact; incident frequency + impact increase Instana impact.",
-        "Next version adds a “Show sources” panel (TEI + benchmarks) so buyers can see justification inline."
+        "Next version can add a “Show sources” panel (TEI + benchmarks) so buyers can see justification inline."
       ],
       default: null
     },
+
+    assumptions: {
+      title: "Assumptions (buyer-friendly)",
+      body:
+        "This calculator provides directional estimates to support prioritization and planning. You can adjust any input and rerun in seconds.",
+      bullets: [
+        "Cloudability: visibility + allocation + governance-driven savings over time.",
+        "Turbonomic: automated rightsizing/resourcing—stronger when VM count and compute spend are high.",
+        "Instana: reduces incident impact and troubleshooting time—stronger when incident volume or impact is high.",
+        "Scenario selection changes adoption speed and value capture."
+      ],
+      default: null
+    },
+
     cloudSpend: {
       title: "Annual cloud spend",
       body:
@@ -340,8 +343,8 @@
       body:
         "Total VMs (cloud + on-prem). Higher VM counts usually mean more manual sizing and more savings potential from automation (Turbonomic).",
       bullets: [
-        "If you don’t know total, enter cloud VMs only and we’ll add a separate on-prem field later.",
-        "Kubernetes-heavy shops may have fewer VMs but more nodes/pods—future version will capture that."
+        "If you don’t know total, enter cloud VMs only and refine later.",
+        "Kubernetes-heavy shops may have fewer VMs but more nodes/pods—future version can capture that."
       ],
       default: { id:"vms", value: 800 }
     },
@@ -367,7 +370,7 @@
     devs: {
       title: "# Developers",
       body:
-        "Developer count helps estimate productivity gains from Instana (less time troubleshooting, faster root cause). Larger dev orgs generally amplify observability ROI.",
+        "Developer count helps estimate productivity gains from Instana (less time troubleshooting, faster root cause). Larger dev orgs generally amplifies observability ROI.",
       bullets: [
         "If you have multiple product teams, include all teams building or operating customer-facing services."
       ],
@@ -426,7 +429,7 @@
     toolBudget: {
       title: "Expected annual tool budget",
       body:
-        "Used as a placeholder cost input for this sample. Final version will let you set actual prices or choose tiers, and it will break out enablement/services separately.",
+        "Used as a placeholder cost input for this sample. Final version can let you set actual prices or choose tiers, and it can break out enablement/services separately.",
       bullets: [
         "This is NOT meant to match list price.",
         "Enter what you think would be a realistic annual budget for tools + enablement."
@@ -449,32 +452,20 @@
         "Scenario changes savings multipliers. Conservative assumes slower adoption and lower capture; Aggressive assumes strong governance, engineering capacity, and executive support.",
       bullets: [
         "Expected is most useful for a first conversation.",
-        "Final version will show exact assumption values and citations per scenario."
+        "Final version can show exact assumption values and citations per scenario."
       ],
       default: null
-    },
-    assumptions: {
-    title: "Assumptions (buyer-friendly)",
-    body:
-      "This calculator provides directional estimates to support prioritization and planning. You can adjust any input and rerun in seconds.",
-    bullets: [
-      "Cloudability: visibility + allocation + governance-driven savings over time.",
-      "Turbonomic: automated rightsizing/resourcing—stronger when VM count and compute spend are high.",
-      "Instana: reduces incident impact and troubleshooting time—stronger when incident volume or impact is high.",
-      "Scenario selection changes adoption speed and value capture."
-    ],
-    default: null
-  },
-
+    }
   };
 
-  // --- Assumption ranges (still placeholder; we’ll swap for TEI + benchmark values next) ---
+  // --- Scenario ranges (placeholder) ---
   const ASSUMPTIONS = {
     conservative: { cloudability_savings_pct: 0.05, turbo_compute_savings_pct: 0.06, instana_incident_reduction: 0.08, labor_efficiency_pct: 0.02 },
     expected:     { cloudability_savings_pct: 0.10, turbo_compute_savings_pct: 0.12, instana_incident_reduction: 0.18, labor_efficiency_pct: 0.05 },
     aggressive:   { cloudability_savings_pct: 0.16, turbo_compute_savings_pct: 0.20, instana_incident_reduction: 0.28, labor_efficiency_pct: 0.08 }
   };
 
+  // Helpers for model
   function computeShareFromMix(taggingPct, commitPct){
     let base = 0.55;
     if (commitPct > 50) base += 0.05;
@@ -486,200 +477,11 @@
     if (infraEng >= 10) r += 0.05;
     return clamp(r, 0.40, 0.85);
   }
-  function rampFactor(rampMonths){ return clamp((12 - rampMonths)/12, 0, 1); }
+  const rampFactor = (rampMonths) => clamp((12 - rampMonths)/12, 0, 1);
 
   function toolCostSplit(toolBudget, which){
     const splits = { cloudability: 0.45, turbonomic: 0.45, instana: 0.45, c_t: 0.72, c_i: 0.72, t_i: 0.72, all: 0.95 };
     return toolBudget * (splits[which] ?? 0.5);
-  }
-
-  function run(){
-    const cloudSpend = Number(document.getElementById('cloudSpend').value||0);
-    const itSpend = Number(document.getElementById('itSpend').value||0);
-    const cloudPct = clamp(Number(document.getElementById('cloudPct').value||0),0,100)/100;
-    const vms = Number(document.getElementById('vms').value||0);
-    const infraEng = Number(document.getElementById('infraEng').value||0);
-    const ops = Number(document.getElementById('ops').value||0);
-    const devs = Number(document.getElementById('devs').value||0);
-    const loadedCost = Number(document.getElementById('loadedCost').value||0);
-    const incidentsMo = Number(document.getElementById('incidents').value||0);
-    const impactHr = Number(document.getElementById('impactHr').value||0);
-    const taggingPct = clamp(Number(document.getElementById('tagging').value||0),0,100);
-    const commitPct = clamp(Number(document.getElementById('commit').value||0),0,100);
-    const toolBudget = Number(document.getElementById('toolBudget').value||0);
-    const ramp = clamp(Number(document.getElementById('ramp').value||0),0,12);
-    const scen = document.getElementById('scenario').value;
-
-    const a = ASSUMPTIONS[scen];
-    const rf = rampFactor(ramp);
-    const real = realization(taggingPct, infraEng);
-
-    const inScopeCloud = cloudSpend * 0.85; // placeholder coverage
-    const computeShare = computeShareFromMix(taggingPct, commitPct);
-    const cloudCompute = inScopeCloud * computeShare;
-
-    const cloudabilityBenefit = inScopeCloud * a.cloudability_savings_pct * real * rf;
-
-    const vmScaleFactor = clamp(Math.log10(Math.max(vms,10)) / 3, 0.4, 1.2);
-    const turbonomicBenefit = cloudCompute * a.turbo_compute_savings_pct * real * rf * vmScaleFactor
-      + (itSpend*(1-cloudPct)) * 0.01 * rf * (vms>800?1:0.5);
-
-    const avgIncidentHours = 2.0; // placeholder (next version becomes input)
-    const annualIncidentImpact = incidentsMo * 12 * avgIncidentHours * impactHr;
-
-    const instanaIncidentBenefit = annualIncidentImpact * a.instana_incident_reduction * rf;
-    const devOpsPeople = devs + ops;
-    const laborBucket = devOpsPeople * loadedCost;
-    const instanaLaborBenefit = laborBucket * a.labor_efficiency_pct * 0.35 * rf;
-    const instanaBenefit = instanaIncidentBenefit + instanaLaborBenefit;
-function downloadSummary(){
-  // If they haven’t run it yet, run it once so results exist
-  const tbl = document.getElementById('tbl');
-  if (!tbl || tbl.style.display === 'none') {
-    try { run(); } catch (e) {}
-  }
-
-  // Collect current inputs
-  const inputs = {
-    "Annual cloud spend": document.getElementById('cloudSpend').value,
-    "Annual total IT spend": document.getElementById('itSpend').value,
-    "Cloud mix (cloud %)": document.getElementById('cloudPct').value,
-    "Total VMs": document.getElementById('vms').value,
-    "Infra/Platform engineers": document.getElementById('infraEng').value,
-    "SRE/Ops": document.getElementById('ops').value,
-    "Developers": document.getElementById('devs').value,
-    "Avg loaded cost": document.getElementById('loadedCost').value,
-    "Sev1+Sev2 incidents/month": document.getElementById('incidents').value,
-    "Business impact per hour": document.getElementById('impactHr').value,
-    "Tagging coverage %": document.getElementById('tagging').value,
-    "Commitment coverage %": document.getElementById('commit').value,
-    "Annual tool budget": document.getElementById('toolBudget').value,
-    "Ramp-up months": document.getElementById('ramp').value,
-    "Scenario": document.getElementById('scenario').value
-  };
-
-  // Pull top recommendation from the UI
-  const summaryEl = document.getElementById('summary');
-  const topLine = summaryEl ? summaryEl.textContent : "Top recommendation: (not available)";
-
-  // Pull ROI table rows (first 6 shown)
-  let tableText = "";
-  const tbody = document.getElementById('tbody');
-  if (tbody) {
-    const rows = tbody.querySelectorAll('tr');
-    const lines = [];
-    lines.push("Option | Gross benefit | Total cost | Net benefit | ROI | Payback");
-    lines.push("------ | ------------ | ---------- | ---------- | --- | -------");
-    rows.forEach(r=>{
-      const cols = r.querySelectorAll('td');
-      if (cols.length >= 6) {
-        lines.push([
-          cols[0].textContent.trim(),
-          cols[1].textContent.trim(),
-          cols[2].textContent.trim(),
-          cols[3].textContent.trim(),
-          cols[4].textContent.trim(),
-          cols[5].textContent.trim()
-        ].join(" | "));
-      }
-    });
-    tableText = lines.join("\n");
-  }
-
-  // Build final text
-  const parts = [];
-  parts.push("FinOps ROI Advisor – Summary");
-  parts.push("====================================");
-  parts.push(topLine);
-  parts.push("");
-  parts.push("Inputs");
-  parts.push("------");
-  for (const [k,v] of Object.entries(inputs)) parts.push(`${k}: ${v}`);
-  parts.push("");
-  parts.push("ROI (annualized)");
-  parts.push("---------------");
-  parts.push(tableText || "(ROI table not available)");
-  parts.push("");
-  parts.push("Notes");
-  parts.push("-----");
-  parts.push("This summary is an estimate based on the inputs provided and scenario assumptions in the calculator.");
-
-  const text = parts.join("\n");
-
-  // Download as TXT
-  const blob = new Blob([text], {type: "text/plain;charset=utf-8"});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = "finops-roi-summary.txt";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-
-    const comboBonus = (base) => base * 0.06 * rf;
-
-    const c = cloudabilityBenefit, t = turbonomicBenefit, i = instanaBenefit;
-
-    const options = [
-      { key:"cloudability", name:"Cloudability", benefit: c, cost: toolCostSplit(toolBudget,"cloudability"), why: buildWhy("Cloudability", {taggingPct, commitPct, cloudSpend, infraEng})},
-      { key:"turbonomic", name:"Turbonomic", benefit: t, cost: toolCostSplit(toolBudget,"turbonomic"), why: buildWhy("Turbonomic", {vms, cloudSpend, cloudPct, ops})},
-      { key:"instana", name:"Instana", benefit: i, cost: toolCostSplit(toolBudget,"instana"), why: buildWhy("Instana", {incidentsMo, impactHr, devs, ops})},
-      { key:"c_t", name:"Cloudability + Turbonomic", benefit: (c+t) - (0.20*Math.min(c,t)) + comboBonus(c+t), cost: toolCostSplit(toolBudget,"c_t"), why: "Best when you need both: cost governance (allocation/commitments) + automated resourcing/rightsizing."},
-      { key:"c_i", name:"Cloudability + Instana", benefit: (c+i) - (0.12*Math.min(c,i)) + comboBonus(c+i), cost: toolCostSplit(toolBudget,"c_i"), why: "Best when cloud cost control + incident impact are both urgent (Finance + Engineering alignment)."},
-      { key:"t_i", name:"Turbonomic + Instana", benefit: (t+i) - (0.12*Math.min(t,i)) + comboBonus(t+i), cost: toolCostSplit(toolBudget,"t_i"), why: "Best when performance issues are resource-driven: fix bottlenecks and reduce MTTR together."},
-      { key:"all", name:"All three (Cloudability + Turbonomic + Instana)", benefit: (c+t+i) - (0.26*Math.min(c,Math.min(t,i))) + comboBonus(c+t+i), cost: toolCostSplit(toolBudget,"all"), why: "Best for large orgs with scale + high incident impact + low visibility. Strongest coverage, higher cost."}
-    ];
-
-    for (const o of options){
-      const net = o.benefit - o.cost;
-      const roi = o.cost>0 ? net/o.cost : 0;
-      const pay = o.benefit>0 ? (o.cost/(o.benefit/12)) : Infinity;
-      o.net = net; o.roi = roi; o.payback = pay;
-
-      const speed = isFinite(pay) ? clamp((18-pay)/18,0,1) : 0;
-      const fit = fitScore(o.key, {taggingPct, commitPct, vms, incidentsMo, cloudSpend, cloudPct});
-      o.score = (roi*0.55) + (speed*0.25) + (fit*0.20);
-      o.conf = confidence({taggingPct, commitPct, incidentsMo, vms, cloudSpend});
-    }
-
-    options.sort((a,b)=>b.score-a.score);
-
-    document.getElementById('tbl').style.display = '';
-    document.getElementById('summary').innerHTML =
-      `Top recommendation: <b>${options[0].name}</b> • Scenario: <b>${scen}</b> • Confidence: <b>${options[0].conf}</b>`;
-
-    const rankings = document.getElementById('rankings');
-    rankings.innerHTML = "";
-    for (let idx=0; idx<3; idx++){
-      const o = options[idx];
-      const div = document.createElement('div');
-      div.className = "rank";
-      div.innerHTML = `
-        <div>
-          <div><b>#${idx+1} ${o.name}</b></div>
-          <div class="why">${o.why}</div>
-        </div>
-        <div class="score">Score: ${(o.score*100).toFixed(0)}/100<br/>Payback: ${months(o.payback)}</div>
-      `;
-      rankings.appendChild(div);
-    }
-
-    const tbody = document.getElementById('tbody');
-    tbody.innerHTML = "";
-    for (const o of options.slice(0,6)){
-      const tr = document.createElement('tr');
-      tr.innerHTML = `
-        <td style="text-align:left;font-weight:650">${o.name}</td>
-        <td>${money(o.benefit)}</td>
-        <td>${money(o.cost)}</td>
-        <td>${money(o.net)}</td>
-        <td>${(o.roi*100).toFixed(0)}%</td>
-        <td>${months(o.payback)}</td>
-      `;
-      tbody.appendChild(tr);
-    }
   }
 
   function fitScore(key, x){
@@ -698,7 +500,7 @@ function downloadSummary(){
       if (x.incidentsMo >= 10) s += 0.18;
       if (x.cloudSpend >= 2000000) s += 0.04;
     }
-    return Math.max(0, Math.min(1, s));
+    return clamp(s, 0, 1);
   }
 
   function confidence(x){
@@ -739,20 +541,212 @@ function downloadSummary(){
     return "";
   }
 
+  // ---- Main model ----
+  function run(){
+    const cloudSpend = Number(el('cloudSpend').value||0);
+    const itSpend    = Number(el('itSpend').value||0);
+    const cloudPct   = clamp(Number(el('cloudPct').value||0),0,100)/100;
+    const vms        = Number(el('vms').value||0);
+    const infraEng   = Number(el('infraEng').value||0);
+    const ops        = Number(el('ops').value||0);
+    const devs       = Number(el('devs').value||0);
+    const loadedCost = Number(el('loadedCost').value||0);
+    const incidentsMo= Number(el('incidents').value||0);
+    const impactHr   = Number(el('impactHr').value||0);
+    const taggingPct = clamp(Number(el('tagging').value||0),0,100);
+    const commitPct  = clamp(Number(el('commit').value||0),0,100);
+    const toolBudget = Number(el('toolBudget').value||0);
+    const ramp       = clamp(Number(el('ramp').value||0),0,12);
+    const scen       = el('scenario').value;
+
+    const a    = ASSUMPTIONS[scen];
+    const rf   = rampFactor(ramp);
+    const real = realization(taggingPct, infraEng);
+
+    const inScopeCloud  = cloudSpend * 0.85; // placeholder coverage
+    const computeShare  = computeShareFromMix(taggingPct, commitPct);
+    const cloudCompute  = inScopeCloud * computeShare;
+
+    // Cloudability benefit: governance & waste reduction on in-scope cloud
+    const cloudabilityBenefit = inScopeCloud * a.cloudability_savings_pct * real * rf;
+
+    // Turbonomic: rightsizing on cloud compute + (light) on-prem/hybrid lift
+    const vmScaleFactor = clamp(Math.log10(Math.max(vms,10)) / 3, 0.4, 1.2);
+    const turbonomicBenefit =
+      (cloudCompute * a.turbo_compute_savings_pct * real * rf * vmScaleFactor) +
+      ((itSpend*(1-cloudPct)) * 0.01 * rf * (vms>800?1:0.5));
+
+    // Instana: reduce incident impact + some labor efficiency
+    const avgIncidentHours = 2.0; // placeholder (next version becomes input)
+    const annualIncidentImpact = incidentsMo * 12 * avgIncidentHours * impactHr;
+    const instanaIncidentBenefit = annualIncidentImpact * a.instana_incident_reduction * rf;
+
+    const devOpsPeople = devs + ops;
+    const laborBucket = devOpsPeople * loadedCost;
+    const instanaLaborBenefit = laborBucket * a.labor_efficiency_pct * 0.35 * rf;
+
+    const instanaBenefit = instanaIncidentBenefit + instanaLaborBenefit;
+
+    const comboBonus = (base) => base * 0.06 * rf;
+
+    const c = cloudabilityBenefit, t = turbonomicBenefit, i = instanaBenefit;
+
+    const options = [
+      { key:"cloudability", name:"Cloudability", benefit: c, cost: toolCostSplit(toolBudget,"cloudability"), why: buildWhy("Cloudability", {taggingPct, commitPct, cloudSpend, infraEng})},
+      { key:"turbonomic", name:"Turbonomic", benefit: t, cost: toolCostSplit(toolBudget,"turbonomic"), why: buildWhy("Turbonomic", {vms, cloudSpend, cloudPct, ops})},
+      { key:"instana", name:"Instana", benefit: i, cost: toolCostSplit(toolBudget,"instana"), why: buildWhy("Instana", {incidentsMo, impactHr, devs, ops})},
+      { key:"c_t", name:"Cloudability + Turbonomic", benefit: (c+t) - (0.20*Math.min(c,t)) + comboBonus(c+t), cost: toolCostSplit(toolBudget,"c_t"), why: "Best when you need both: cost governance (allocation/commitments) + automated resourcing/rightsizing."},
+      { key:"c_i", name:"Cloudability + Instana", benefit: (c+i) - (0.12*Math.min(c,i)) + comboBonus(c+i), cost: toolCostSplit(toolBudget,"c_i"), why: "Best when cloud cost control + incident impact are both urgent (Finance + Engineering alignment)."},
+      { key:"t_i", name:"Turbonomic + Instana", benefit: (t+i) - (0.12*Math.min(t,i)) + comboBonus(t+i), cost: toolCostSplit(toolBudget,"t_i"), why: "Best when performance issues are resource-driven: fix bottlenecks and reduce MTTR together."},
+      { key:"all", name:"All three (Cloudability + Turbonomic + Instana)", benefit: (c+t+i) - (0.26*Math.min(c,Math.min(t,i))) + comboBonus(c+t+i), cost: toolCostSplit(toolBudget,"all"), why: "Best for large orgs with scale + high incident impact + low visibility. Strongest coverage, higher cost."}
+    ];
+
+    for (const o of options){
+      const net = o.benefit - o.cost;
+      const roi = o.cost>0 ? net/o.cost : 0;
+      const pay = o.benefit>0 ? (o.cost/(o.benefit/12)) : Infinity;
+      o.net = net; o.roi = roi; o.payback = pay;
+
+      const speed = isFinite(pay) ? clamp((18-pay)/18,0,1) : 0;
+      const fit = fitScore(o.key, {taggingPct, commitPct, vms, incidentsMo, cloudSpend, cloudPct});
+      o.score = (roi*0.55) + (speed*0.25) + (fit*0.20);
+      o.conf = confidence({taggingPct, commitPct, incidentsMo, vms, cloudSpend});
+    }
+
+    options.sort((a,b)=>b.score-a.score);
+
+    el('tbl').style.display = '';
+    el('summary').innerHTML = `Top recommendation: <b>${options[0].name}</b> • Scenario: <b>${scen}</b> • Confidence: <b>${options[0].conf}</b>`;
+
+    const rankings = el('rankings');
+    rankings.innerHTML = "";
+    for (let idx=0; idx<3; idx++){
+      const o = options[idx];
+      const div = document.createElement('div');
+      div.className = "rank";
+      div.innerHTML = `
+        <div>
+          <div><b>#${idx+1} ${o.name}</b></div>
+          <div class="why">${o.why}</div>
+        </div>
+        <div class="score">Score: ${(o.score*100).toFixed(0)}/100<br/>Payback: ${months(o.payback)}</div>
+      `;
+      rankings.appendChild(div);
+    }
+
+    const tbody = el('tbody');
+    tbody.innerHTML = "";
+    for (const o of options.slice(0,6)){
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td style="text-align:left;font-weight:650">${o.name}</td>
+        <td>${money(o.benefit)}</td>
+        <td>${money(o.cost)}</td>
+        <td>${money(o.net)}</td>
+        <td>${(o.roi*100).toFixed(0)}%</td>
+        <td>${months(o.payback)}</td>
+      `;
+      tbody.appendChild(tr);
+    }
+  }
+
+  // ---- Download summary ----
+  function downloadSummary(){
+    // If they haven’t run it yet, run it once so results exist
+    const tbl = el('tbl');
+    if (!tbl || tbl.style.display === 'none') {
+      try { run(); } catch (e) {}
+    }
+
+    const inputs = {
+      "Annual cloud spend": el('cloudSpend')?.value,
+      "Annual total IT spend": el('itSpend')?.value,
+      "Cloud mix (cloud %)": el('cloudPct')?.value,
+      "Total VMs": el('vms')?.value,
+      "Infra/Platform engineers": el('infraEng')?.value,
+      "SRE/Ops": el('ops')?.value,
+      "Developers": el('devs')?.value,
+      "Avg loaded cost": el('loadedCost')?.value,
+      "Sev1+Sev2 incidents/month": el('incidents')?.value,
+      "Business impact per hour": el('impactHr')?.value,
+      "Tagging coverage %": el('tagging')?.value,
+      "Commitment coverage %": el('commit')?.value,
+      "Annual tool budget": el('toolBudget')?.value,
+      "Ramp-up months": el('ramp')?.value,
+      "Scenario": el('scenario')?.value
+    };
+
+    const summaryEl = el('summary');
+    const topLine = summaryEl ? summaryEl.textContent : "Top recommendation: (not available)";
+
+    // Pull ROI table rows
+    let tableText = "";
+    const tbody = el('tbody');
+    if (tbody) {
+      const rows = tbody.querySelectorAll('tr');
+      const lines = [];
+      lines.push("Option | Gross benefit | Total cost | Net benefit | ROI | Payback");
+      lines.push("------ | ------------ | ---------- | ---------- | --- | -------");
+      rows.forEach(r=>{
+        const cols = r.querySelectorAll('td');
+        if (cols.length >= 6) {
+          lines.push([
+            cols[0].textContent.trim(),
+            cols[1].textContent.trim(),
+            cols[2].textContent.trim(),
+            cols[3].textContent.trim(),
+            cols[4].textContent.trim(),
+            cols[5].textContent.trim()
+          ].join(" | "));
+        }
+      });
+      tableText = lines.join("\n");
+    }
+
+    const parts = [];
+    parts.push("FinOps ROI Advisor – Summary");
+    parts.push("====================================");
+    parts.push(topLine);
+    parts.push("");
+    parts.push("Inputs");
+    parts.push("------");
+    for (const [k,v] of Object.entries(inputs)) parts.push(`${k}: ${v ?? ""}`);
+    parts.push("");
+    parts.push("ROI (annualized)");
+    parts.push("---------------");
+    parts.push(tableText || "(ROI table not available)");
+    parts.push("");
+    parts.push("Notes");
+    parts.push("-----");
+    parts.push("Directional estimate for prioritization. Actual results vary.");
+
+    const text = parts.join("\n");
+
+    const blob = new Blob([text], {type: "text/plain;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = "finops-roi-summary.txt";
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    URL.revokeObjectURL(url);
+  }
+
+  // ---- Examples ----
   function setExample(type){
-    console.log("setExample running:", type);
     if (type==="finops"){
-      cloudSpend.value=7000000; itSpend.value=22000000; cloudPct.value=70;
-      vms.value=1200; infraEng.value=14; ops.value=8; devs.value=90;
-      loadedCost.value=180000; incidents.value=6; impactHr.value=15000;
-      tagging.value=42; commit.value=25; toolBudget.value=280000; ramp.value=3;
-      scenario.value="expected";
+      el('cloudSpend').value=7000000; el('itSpend').value=22000000; el('cloudPct').value=70;
+      el('vms').value=1200; el('infraEng').value=14; el('ops').value=8; el('devs').value=90;
+      el('loadedCost').value=180000; el('incidents').value=6; el('impactHr').value=15000;
+      el('tagging').value=42; el('commit').value=25; el('toolBudget').value=280000; el('ramp').value=3;
+      el('scenario').value="expected";
     } else {
-      cloudSpend.value=3500000; itSpend.value=18000000; cloudPct.value=55;
-      vms.value=900; infraEng.value=10; ops.value=12; devs.value=160;
-      loadedCost.value=175000; incidents.value=22; impactHr.value=40000;
-      tagging.value=68; commit.value=55; toolBudget.value=320000; ramp.value=2;
-      scenario.value="expected";
+      el('cloudSpend').value=3500000; el('itSpend').value=18000000; el('cloudPct').value=55;
+      el('vms').value=900; el('infraEng').value=10; el('ops').value=12; el('devs').value=160;
+      el('loadedCost').value=175000; el('incidents').value=22; el('impactHr').value=40000;
+      el('tagging').value=68; el('commit').value=55; el('toolBudget').value=320000; el('ramp').value=2;
+      el('scenario').value="expected";
     }
   }
 
@@ -760,18 +754,17 @@ function downloadSummary(){
   let currentHelpKey = null;
 
   function openHelp(key){
-    console.log("openHelp clicked:", key);
     currentHelpKey = key;
     const h = HELP[key];
     if (!h) {
-  console.error("Help popup not found for key:", key);
-  alert("Popup not found: " + key + " (check HELP object)");
-  return;
-}
-    document.getElementById('modalTitle').textContent = h.title;
-    document.getElementById('modalBody').textContent = h.body;
+      console.error("Help popup not found for key:", key);
+      alert("Popup not found: " + key + " (check HELP object)");
+      return;
+    }
+    el('modalTitle').textContent = h.title;
+    el('modalBody').textContent = h.body;
 
-    const list = document.getElementById('modalList');
+    const list = el('modalList');
     list.innerHTML = "";
     if (h.bullets && h.bullets.length){
       const ul = document.createElement('ul');
@@ -783,7 +776,7 @@ function downloadSummary(){
       list.appendChild(ul);
     }
 
-    const defaultBtn = document.getElementById('defaultBtn');
+    const defaultBtn = el('defaultBtn');
     if (h.default && h.default.id){
       defaultBtn.style.display = "";
       defaultBtn.textContent = `Use default (${h.default.value})`;
@@ -791,18 +784,18 @@ function downloadSummary(){
       defaultBtn.style.display = "none";
     }
 
-    document.getElementById('backdrop').style.display = "flex";
+    el('backdrop').style.display = "flex";
   }
 
   function applyDefault(){
     const h = HELP[currentHelpKey];
     if (!h || !h.default) return;
-    const el = document.getElementById(h.default.id);
-    if (el) el.value = h.default.value;
+    const input = el(h.default.id);
+    if (input) input.value = h.default.value;
   }
 
   function closeHelp(){
-    document.getElementById('backdrop').style.display = "none";
+    el('backdrop').style.display = "none";
     currentHelpKey = null;
   }
 
@@ -813,141 +806,14 @@ function downloadSummary(){
   document.addEventListener('keydown', (e)=>{
     if (e.key === "Escape") closeHelp();
   });
-  function downloadSummary(){
-  // Make sure results exist
-  const tbl = document.getElementById('tbl');
-  if (!tbl || tbl.style.display === 'none') {
-    try { run(); } catch (e) {}
-  }
 
-  // Collect current inputs
-  const inputs = {
-    "Annual cloud spend": document.getElementById('cloudSpend')?.value,
-    "Annual total IT spend": document.getElementById('itSpend')?.value,
-    "Cloud mix (cloud %)": document.getElementById('cloudPct')?.value,
-    "Total VMs": document.getElementById('vms')?.value,
-    "Infra/Platform engineers": document.getElementById('infraEng')?.value,
-    "SRE/Ops": document.getElementById('ops')?.value,
-    "Developers": document.getElementById('devs')?.value,
-    "Avg loaded cost": document.getElementById('loadedCost')?.value,
-    "Sev1+Sev2 incidents/month": document.getElementById('incidents')?.value,
-    "Business impact per hour": document.getElementById('impactHr')?.value,
-    "Tagging coverage %": document.getElementById('tagging')?.value,
-    "Commitment coverage %": document.getElementById('commit')?.value,
-    "Annual tool budget": document.getElementById('toolBudget')?.value,
-    "Ramp-up months": document.getElementById('ramp')?.value,
-    "Scenario": document.getElementById('scenario')?.value
-  };
-
-  // Pull top recommendation from the UI
-  const summaryEl = document.getElementById('summary');
-  const topLine = summaryEl ? summaryEl.textContent : "Top recommendation: (not available)";
-
-  // Pull ROI table rows
-  let tableText = "";
-  const tbody = document.getElementById('tbody');
-  if (tbody) {
-    const rows = tbody.querySelectorAll('tr');
-    const lines = [];
-    lines.push("Option | Gross benefit | Total cost | Net benefit | ROI | Payback");
-    lines.push("------ | ------------ | ---------- | ---------- | --- | -------");
-    rows.forEach(r=>{
-      const cols = r.querySelectorAll('td');
-      if (cols.length >= 6) {
-        lines.push([
-          cols[0].textContent.trim(),
-          cols[1].textContent.trim(),
-          cols[2].textContent.trim(),
-          cols[3].textContent.trim(),
-          cols[4].textContent.trim(),
-          cols[5].textContent.trim()
-        ].join(" | "));
-      }
-    });
-    tableText = lines.join("\n");
-  }
-
-  // Build final text
-  const parts = [];
-  parts.push("FinOps ROI Advisor – Summary");
-  parts.push("====================================");
-  parts.push(topLine);
-  parts.push("");
-  parts.push("Inputs");
-  parts.push("------");
-  for (const [k,v] of Object.entries(inputs)) parts.push(`${k}: ${v ?? ""}`);
-  parts.push("");
-  parts.push("ROI (annualized)");
-  parts.push("---------------");
-  parts.push(tableText || "(ROI table not available)");
-  parts.push("");
-  parts.push("Notes");
-  parts.push("-----");
-  parts.push("Directional estimate for prioritization. Actual results vary.");
-
-  const text = parts.join("\n");
-
-  // Download as TXT
-  const blob = new Blob([text], {type: "text/plain;charset=utf-8"});
-  const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = "finops-roi-summary.txt";
-  document.body.appendChild(a);
-  a.click();
-  a.remove();
-  URL.revokeObjectURL(url);
-}
-// --- CLICK DEBUG + BACKUP HANDLERS (leave this in) ---
-window.addEventListener("DOMContentLoaded", () => {
-  console.log("DOM loaded ✅");
-
-  const fin = document.getElementById("btnExampleFinops");
-  const inc = document.getElementById("btnExampleIncidents");
-
-  console.log("Found buttons:", !!fin, !!inc);
-
-  // Backup click listeners (work even if inline onclick fails)
-  if (fin) fin.addEventListener("click", () => console.log("Listener saw click: FinOps ✅"));
-  if (inc) inc.addEventListener("click", () => console.log("Listener saw click: Incidents ✅"));
-
-  // Make clicks definitely do something visible
-  if (fin) fin.addEventListener("click", () => {
-    try { setExample("finops"); } catch (e) { console.error("setExample finops error:", e); }
+  // Small quality-of-life: ensure example buttons always work (even if browser ignores inline onclick)
+  window.addEventListener("DOMContentLoaded", () => {
+    const fin = el("btnExampleFinops");
+    const inc = el("btnExampleIncidents");
+    if (fin) fin.addEventListener("click", () => setExample("finops"));
+    if (inc) inc.addEventListener("click", () => setExample("ops"));
   });
-  if (inc) inc.addEventListener("click", () => {
-    try { setExample("ops"); } catch (e) { console.error("setExample ops error:", e); }
-  });
-});
-function showToast(msg){
-  let t = document.getElementById('toast');
-  if (!t) {
-    t = document.createElement('div');
-    t.id = 'toast';
-    t.style.cssText = `
-      position:fixed; left:16px; bottom:16px; z-index:99999;
-      background:rgba(18,27,47,.98); border:1px solid rgba(255,255,255,.12);
-      color:#e9eefc; padding:10px 12px; border-radius:12px; display:none;
-      box-shadow:0 10px 30px rgba(0,0,0,.35); font-size:13px;
-    `;
-    document.body.appendChild(t);
-  }
-  t.textContent = msg;
-  t.style.display = 'block';
-  clearTimeout(window.__toastTimer);
-  window.__toastTimer = setTimeout(()=>{ t.style.display='none'; }, 2000);
-}
-window.addEventListener("DOMContentLoaded", () => {
-  const btn = document.getElementById("btnAssumptions");
-  console.log("Assumptions button found:", !!btn);
-  if (btn) {
-    btn.addEventListener("click", () => {
-      console.log("Listener saw click: Assumptions ✅");
-      try { openHelp("assumptions"); } catch (e) { console.error(e); }
-    });
-  }
-});
-
 </script>
 </body>
 </html>
